@@ -1,27 +1,142 @@
 ---
 title: "Reproducible Quarto Report"
-author: "Lujain"
-format: html
-editor: visual
+author: "Lujain Alassaf"
+GitHub repository: https://github.com/Lujainism/Module-3-Project
+date: "2024-06-04"
+output:
+  html: default
+bibliography: references.bib
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
 ```{r}
-1 + 1
+#| include: false
+# Global options to print all outputs but not code, messages, or warnings
+knitr::opts_chunk$set(echo = FALSE, results = 'markup', message = FALSE, warning = FALSE)
+#Load necessary packages and data file
+
+library(tidyverse)
+library(gt)
+library(webshot2)
+library(ggplot2)
+library(here)
+library(table1)
+library(dplyr)
+library(broom)
+library(kableExtra)
+
+#load the data
+cohort <- read.csv(here("cohort.csv"))
 ```
 
-You can add options to executable code like this
+# Introduction
+
+Healthcare costs are a major concern for patients, healthcare providers, and policymakers. Creating efficient plans to control and lower healthcare costs requires a thorough understanding of the factors that affect these costs. Using a simulated cohort dataset, this analysis attempts to explore the relationship between healthcare costs and demographic and health-related variables. The cohort dataset consists of 5,000 observations, each representing an individual. The variables included in the dataset are smoking status (`smoke`), gender (`female`), age (`age`), presence of cardiac conditions (`cardiac`), and health care costs (`cost`).
+
+It is well recognized that smoking and heart conditions have a substantial negative influence on a person's health and, in turn, their use of medical services and expenses. Smoking poses a significant risk for developing a number of chronic illnesses, such as respiratory, cardiovascular, and some types of cancer.[@who2021tobacco]. Other significant demographic variables that can affect health care costs are age and gender. People who are older are more likely to have chronic illnesses and need more medical attention, which increases health care expenses.[@alemayehu2004lifetime]. Gender differences in health care utilization and costs have also been observed, with women often having higher healthcare costs compared to men [@owens2008gender].
+
+By examining the relationships between smoking status, gender, age, cardiac conditions, and health care costs in this simulated cohort, we aim to identify the key drivers of health care costs. Thus, the purpose of this analysis is to:
+
+1.  Describe the characteristics of the simulated cohort, including the distribution of demographic and health-related variables.
+
+2.  Investigate the associations between smoking status, gender, age, cardiac conditions, and health care costs.
+
+# Methods
+
+We conducted descriptive statistics to summarize the characteristics of the cohort. Categorical variables were presented in frequencies with proportions while continuous variables were presented in means and standard deviations. Further, to investigate the associations between smoking status, gender, age, cardiac conditions, and health care costs, we employed a linear regression model with costs as the main outcome variable. The linear regression model can be described as follows:
+
+$$\text{cost}_i = \beta_0 + \beta_1 \text{age}_i + \beta_2 \text{smoke}_i + \beta_3 \text{female}_i + \beta_4 \text{cardiac}_i + \epsilon_i$$
+
+Where:
+
+-   $\text{cost}_i$ represents the health care costs for individual $i$.
+-   $\beta_0$ is the intercept of the model.
+-   $\beta_1$, $\beta_2$, $\beta_3$, $\beta_4$ are the coefficients for the predictors age, smoking status, gender, and cardiac conditions, respectively.
+-   $\epsilon_i$ is the error term for individual $i$.
+
+Significance was assessed at 0.05 level, and all statistical analyses were conducted using R version 4.4.0.
 
 ```{r}
 #| echo: false
-2 * 2
+
+#rename variables for clarity and add value labels
+cohort <- cohort %>%
+  rename(
+    gender = female,
+    smoker = smoke
+  )
+
+# Convert to a factor with labels
+cohort$cardiac <- factor(cohort$cardiac, levels = c(0, 1), labels = c("No", "Yes"))
+cohort$gender <- factor(cohort$gender, levels = c(0, 1), labels = c("Male", "Female"))
+cohort$smoker <- factor(cohort$smoker, levels = c(0, 1), labels = c("Non-Smoker", "Smoker"))
+
+# Set variable labels
+label(cohort$gender) <- "Gender"
+label(cohort$cardiac) <- "Cardiac"
+label(cohort$smoker) <- "Smoker"
+label(cohort$age) <- "Age"
+label(cohort$cost) <- "Cost in $"
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+# Results
+
+Table 1 presents the descriptive statistics for the study population, stratified by smoking status. Overall, the sample consists of 51.3% males and 48.7% females with overall mean age of 41.5. The gender and mean age look somewhat evenly distributed between smokers and non-smokers. The dataset includes 4,492 non-smokers and 508 smokers. The average cost is higher for smokers, with a mean cost of \$10,200 (SD = 371) compared to \$9,610 (SD = 352) for non-smokers. Further, cardiac conditions appear to be more common among smokers, with 15.2% of smokers have cardiac conditions compared to non-smokers, 2.5%.
+
+```{r}
+#| echo: false
+
+table1(~ age + cost + gender + cardiac | smoker, data = cohort , caption = "Table 1: Descriptive statistics by smoking status")
+
+```
+
+Table 2 shows the relationship between healthcare costs and our redictor variables. The model outputs show that being a smoker is significantly associated with higher health care costs. Specifically, smokers have a health care cost that is, on average, \$550 higher than non-smokers (p \< 0.001). In addition, age also appears to be a significant predictor in our model, with each additional year of age associated with an increase in health care costs by approximately \$20 (p \< 0.05). Gender was not statistically significant. Cardiac status is another important factor, with individuals having cardiac conditions incurring significantly higher costs. Those with cardiac conditions have an average health care cost increase of \$650 compared to those without (p \< 0.001).
+
+```{r}
+#| echo: false
+
+# Multivariate logistic regression model
+Linear_model_controls <- lm(cost ~ cardiac + age + gender + smoker, data = cohort)
+
+# Tidy the model output and create a neat table
+tidy_model <- broom::tidy(Linear_model_controls)
+tidy_model <- tidy_model %>%
+  mutate(p.value = format.pval(p.value, digits = 5)) # Format p-values
+
+tidy_model %>%
+  kable(format = "html", table.attr = "class='table table-striped'", caption = "Table 2: Multivariate Linear Regression Model") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+
+
+
+```
+
+Figure 1 presents a scatter plot of healthcare costs against age, The trend line suggests that as age increases, health care costs tend to increase as well. This is indicated by the upward slope of the blue line.
+
+```{r}
+#| echo: false
+
+# Scatter plot
+ggplot(cohort, aes(x = age, y = cost)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(title = "Figure 1: Age vs Health Care Costs", x = "Age", y = "Health Care Costs")
+
+```
+
+Figure 2 presents a comparison of health care costs between non-smokers and smokers. The median health care cost for non-smokers is lower than that for smokers. Specifically, non-smokers have a median cost close to \$9,650, while smokers exhibit a higher median cost of approximately \$10,200.
+
+```{r}
+#| echo: false
+
+# Box plot
+ggplot(cohort, aes(x = factor(smoker), y = cost)) +
+  geom_boxplot() +
+  labs(title = "Figure 2: Health Care Costs by Smoking Status", x = "Smoking Status", y = "Health Care Costs")
+
+```
+
+## Conclusion
+
+In this analysis, we investigated the relationship between healthcare costs and demographic as well as health-related variables in a simulated cohort dataset. Our findings showed that all predictors except for gender, were significantly associated with higher healthcare costs. these findings highlight the importance of addressing modifiable risk factors to control healthcare costs and improve overall health outcomes in the population.
+
+## References
